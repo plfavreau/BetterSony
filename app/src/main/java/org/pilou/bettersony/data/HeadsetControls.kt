@@ -37,3 +37,14 @@ fun HeadsetRepository.setAutoOff(on: Boolean) = write({ it.copy(autoOff = on) })
 fun HeadsetRepository.setTouch(on: Boolean) = write({ it.copy(touch = on) }) { it.write(Command.touch(on)) }
 
 fun HeadsetRepository.setVoiceGuide(on: Boolean) = write({ it.copy(voiceGuide = on) }) { it.writeVoiceGuide(on) }
+
+/** A setting that makes the headphones restart, so the app asks before applying it. */
+sealed interface RestartChange {
+    data class Multipoint(val on: Boolean) : RestartChange
+    data class Button(val button: CustomButton) : RestartChange
+}
+
+suspend fun HeadsetRepository.apply(change: RestartChange): Boolean = when (change) {
+    is RestartChange.Multipoint -> restartWith({ it.copy(multipoint = change.on) }, Command.multipoint(change.on))
+    is RestartChange.Button -> restartWith({ it.copy(customButton = change.button) }, Command.customButton(change.button))
+}

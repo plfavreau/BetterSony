@@ -14,6 +14,7 @@ private val DETAILS = listOf(
     Query.TALK_CONFIG, Query.CODEC, Query.DSEE, Query.CONNECTION_MODE, Query.PAUSE, Query.AUTO_OFF,
     Query.TOUCH, Query.MULTIPOINT, Query.BUTTON, Query.MODEL, Query.FIRMWARE,
 )
+private const val QUESTION_WAIT_MS = 3000L
 private val EDITABLE = listOf(Query.SOUND, Query.TALK, Query.TALK_CONFIG, Query.EQ, Query.DSEE, Query.PAUSE, Query.AUTO_OFF)
 
 /**
@@ -75,6 +76,25 @@ class HeadsetSession(
     suspend fun writeVoiceGuide(on: Boolean) = send(Command.voiceGuide(on), MsgType.TABLE_2)
 
     suspend fun powerOff() = send(Command.POWER_OFF)
+
+    /**
+     * For settings that restart the headset: it answers [payload] with a yes/no question and only
+     * applies it once we say yes. Returns false if it never asked (nothing changed).
+     */
+    suspend fun writeWithRestart(payload: ByteArray): Boolean = withContext(io) {
+        client.send(Command.ALERTS_ON)
+        client.send(payload)
+        val deadline = System.currentTimeMillis() + QUESTION_WAIT_MS
+        var question: Int? = null
+        while (question == null) {
+            val left = deadline - System.currentTimeMillis()
+            val frame = (if (left > 0) client.nextFrame(left) else null) ?: break
+            question = frame.restartQuestion()
+            if (question == null) client.onUnsolicited?.invoke(frame)
+        }
+        question?.let { client.send(Command.confirm(it)) }
+        question != null
+    }
 
     suspend fun pumpPushes() = withContext(io) { client.drainUnsolicited() }
 }

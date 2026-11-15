@@ -71,10 +71,15 @@ object Command {
     fun touch(on: Boolean) = bytesOf(0xD8, 0xD1, 0x01, flag(on))
     fun voiceGuide(on: Boolean) = bytesOf(0x48, 0x01, 0x01, flag(on))
     val POWER_OFF = bytesOf(0x22, 0x00, 0x01)
+
+    /* These two make the headset restart. It asks first, and only applies them once we answer yes. */
+    val ALERTS_ON = bytesOf(0x94, 0x01, 0x00)
+    fun multipoint(on: Boolean) = bytesOf(0xD8, 0xD2, 0x01, flag(on))
+    fun customButton(b: CustomButton) = bytesOf(0xF8, 0x06, 0x01, b.code)
+    fun confirm(alert: Int) = bytesOf(0x98, 0x01, alert, ON)
 }
 
 private val CODECS = mapOf(0x01 to "SBC", 0x02 to "AAC", 0x10 to "LDAC", 0x20 to "aptX", 0x21 to "aptX HD")
-private val BUTTONS = mapOf(0x00 to "Ambient sound", 0x31 to "Google Assistant", 0x32 to "Alexa")
 
 private fun ByteArray.at(i: Int): Int? = if (i < size) this[i].u8 else null
 private fun ByteArray.bool(i: Int): Boolean? = at(i)?.let { it == ON }
@@ -133,7 +138,7 @@ fun Headset.apply(f: MdrFrame): Headset {
         0xF7 to 0x04, 0xF9 to 0x04 -> copy(autoOff = p.at(3)?.let { it == AUTO_OFF_WHEN_REMOVED } ?: autoOff)
         0xD7 to 0xD1, 0xD9 to 0xD1 -> copy(touch = p.bool(3) ?: touch)
         0xD7 to 0xD2, 0xD9 to 0xD2 -> copy(multipoint = p.bool(3) ?: multipoint)
-        0xF7 to 0x06, 0xF9 to 0x06 -> copy(customButton = p.at(3)?.let { BUTTONS[it] ?: "Custom" } ?: customButton)
+        0xF7 to 0x06, 0xF9 to 0x06 -> copy(customButton = CustomButton.of(p.at(3)) ?: customButton)
         else -> this
     }
 }
@@ -141,3 +146,12 @@ fun Headset.apply(f: MdrFrame): Headset {
 /** True for a speak-to-chat on/off report (not the preview or status ones). */
 fun MdrFrame.isTalkReport(): Boolean =
     type == MsgType.TABLE_1 && command in listOf(0xF7, 0xF9) && inquired == 0x05 && payload.at(2) in listOf(0x00, 0x01)
+
+private const val ALERT_NOTIFY = 0x99
+private const val ALERT_FIXED_MESSAGE = 0x01
+private const val ALERT_ASKS_YES_NO = 0x01
+
+/** The message id of a "this will disconnect, OK?" question from the headset, or null. */
+fun MdrFrame.restartQuestion(): Int? = payload.takeIf {
+    type == MsgType.TABLE_1 && it.at(0) == ALERT_NOTIFY && it.at(1) == ALERT_FIXED_MESSAGE && it.at(3) == ALERT_ASKS_YES_NO
+}?.at(2)

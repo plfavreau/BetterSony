@@ -26,6 +26,7 @@ private const val CONNECT_TIMEOUT_MS = 30_000L
 private const val CONNECT_RETRIES = 3
 private const val RETRY_DELAY_MS = 3000L
 private const val TAKEOVER_WINDOW_MS = 60_000L
+private const val RESTART_WINDOW_MS = 60_000L
 private val BATTERY_REPORTS = listOf(0x11, 0x13)
 
 /** Owns the connection lifecycle and exposes one observable [ConnectionState]. */
@@ -45,6 +46,9 @@ class HeadsetRepository(
     private var editsDuringSync = 0
     private var lastTakeover = 0L
     private var poweringOff = false
+    private var restartingUntil = 0L
+    private var restartJob: Job? = null
+    private val restarting: Boolean get() = System.currentTimeMillis() < restartingUntil
 
     private fun log(msg: String) = Log.i(TAG, msg)
 
@@ -83,6 +87,7 @@ class HeadsetRepository(
     }
 
     private fun idle(error: String? = null) {
+        if (restarting) return holdForRestart()
         _state.value = if (devices.isEnabled) {
             ConnectionState.Disconnected(canConnect = devices.bonded().isNotEmpty(), error = error)
         } else {
@@ -209,6 +214,7 @@ class HeadsetRepository(
             poweringOff = false
             return idle()
         }
+        if (restarting) return holdForRestart()
         // The headset serves one control channel: a close while the audio link stays up means another app
         // (Sound Connect) opened it. Take it back once, but don't fight over it.
         val now = System.currentTimeMillis()
@@ -258,6 +264,35 @@ class HeadsetRepository(
         val device = devices.connected() ?: return false
         if (session == null) scope.launch(start = CoroutineStart.UNDISPATCHED) { connect(device) }
         return session != null
+    }
+
+    /**
+     * Multipoint and the custom button restart the headset. The home screen stays up, marked as syncing,
+     * until it reconnects on its own. Returns false if the headset didn't ask to restart (nothing changed).
+     */
+    suspend fun restartWith(optimistic: (Headset) -> Headset, payload: ByteArray): Boolean {
+        val s = session ?: return false
+        restartingUntil = System.currentTimeMillis() + RESTART_WINDOW_MS
+        edit(optimistic)
+        (_state.value as? ConnectionState.Connected)?.let { prefs.saveHeadset(it.headset) }
+        val asked = runCatching { s.writeWithRestart(payload) }.getOrDefault(false)
+        if (!asked) {
+            restartingUntil = 0
+            readDetails(s)
+        }
+        return asked
+    }
+
+    private fun holdForRestart() {
+        _state.update { if (it is ConnectionState.Connected) it.copy(syncing = true, restarting = true) else it }
+        restartJob?.cancel()
+        restartJob = scope.launch {
+            delay(restartingUntil - System.currentTimeMillis())
+            if (session == null) {
+                restartingUntil = 0
+                idle()
+            }
+        }
     }
 
     /** Turns the headphones off. The link drops right after, which resets the state to disconnected. */

@@ -20,6 +20,18 @@ data class SoundControl(
     }
 }
 
+/** What the CUSTOM button on the left earcup does. [code] is the MDR preset id. */
+enum class CustomButton(val code: Int, val label: String) {
+    AMBIENT(0x00, "Ambient sound"),
+    ASSISTANT(0x31, "Google Assistant"),
+    ALEXA(0x32, "Alexa");
+
+    companion object {
+        fun of(code: Int?): CustomButton? = entries.firstOrNull { it.code == code }
+        fun named(name: String?): CustomButton? = entries.firstOrNull { it.name == name }
+    }
+}
+
 enum class Sensitivity(val label: String) { AUTO("Auto"), HIGH("High"), LOW("Low") }
 
 enum class TalkTimeout(val label: String) { SHORT("15 s"), STANDARD("30 s"), LONG("1 min"), NEVER("Never") }
@@ -75,7 +87,7 @@ data class Headset(
     val touch: Boolean? = null,
     val voiceGuide: Boolean? = null,
     val multipoint: Boolean? = null,
-    val customButton: String? = null,
+    val customButton: CustomButton? = null,
 )
 
 sealed interface ConnectionState {
@@ -84,7 +96,8 @@ sealed interface ConnectionState {
     data class Disconnected(val canConnect: Boolean, val error: String? = null) : ConnectionState
     data class Connecting(val name: String) : ConnectionState
     /** [syncing] = showing the last known state while the link is (re)established. */
-    data class Connected(val headset: Headset, val syncing: Boolean = false) : ConnectionState
+    /** [restarting]: a setting change is restarting the headset; it reconnects on its own. */
+    data class Connected(val headset: Headset, val syncing: Boolean = false, val restarting: Boolean = false) : ConnectionState
 }
 
 val DEMO_HEADSET = Headset(
@@ -104,5 +117,5 @@ val DEMO_HEADSET = Headset(
     touch = true,
     voiceGuide = true,
     multipoint = true,
-    customButton = "Ambient sound",
+    customButton = CustomButton.AMBIENT,
 )

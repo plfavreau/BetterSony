@@ -90,7 +90,7 @@ private fun Headset.toJson(): JSONObject = JSONObject().apply {
     sound?.let { put("sound", JSONObject().put("m", it.mode.name).put("l", it.level).put("v", it.voice)) }
     talk?.let { put("talk", JSONObject().put("s", it.sensitivity.name).put("v", it.voiceFocus).put("t", it.timeout.name)) }
     eq?.let { put("eq", JSONObject().put("p", it.preset).put("b", JSONArray(it.bands))) }
-    customButton?.let { put("button", it) }
+    customButton?.let { put("button", it.name) }
     listOf("stc" to speakToChat, "dsee" to dsee, "pq" to preferSound, "pause" to pauseWhenOff, "auto" to autoOff,
         "touch" to touch, "voice" to voiceGuide, "multi" to multipoint).forEach { (k, v) -> v?.let { put(k, it) } }
 }
@@ -114,6 +114,6 @@ private fun headsetFromJson(o: JSONObject): Headset {
         sound = sound, speakToChat = o.boolOrNull("stc"), talk = talk, eq = eq, dsee = o.boolOrNull("dsee"),
         preferSound = o.boolOrNull("pq"), pauseWhenOff = o.boolOrNull("pause"), autoOff = o.boolOrNull("auto"),
         touch = o.boolOrNull("touch"), voiceGuide = o.boolOrNull("voice"), multipoint = o.boolOrNull("multi"),
-        customButton = o.strOrNull("button"),
+        customButton = CustomButton.named(o.strOrNull("button")),
     )
 }

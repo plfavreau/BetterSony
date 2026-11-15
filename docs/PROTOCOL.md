@@ -94,17 +94,21 @@ Values are −10..+10 sent as `00..14`. Presets: `00` off, `10` bright, `11` exc
 
 ### Other settings
 
-| Setting | GET → reply | SET |
-|---|---|---|
-| DSEE Extreme | `e6 02` → `e7 02 00 <v>` | `e8 02 00 <v>` |
-| Sound quality mode | `e6 01` → `e7 01 00 <00 sound / 01 connection>` | `e8 01 00 <v>` |
-| Pause when taken off | `f6 03` → `f7 03 00 <v>` | `f8 03 00 <v>` |
-| Auto power off | `f6 04` → `f7 04 01 <10 when taken off / 11 never> 00` | `f8 04 01 <v> 00` |
-| Touch panel | `d6 d1` → `d7 d1 01 <v>` | `d8 d1 01 <v>` |
-| Multipoint | `d6 d2` → `d7 d2 01 <v>` | not used |
-| Custom button | `f6 06` → `f7 06 01 <00 ambient / 31 Google / 32 Alexa>` | not used |
-| Voice guidance | `0e: 46 01 01` → `47 01 01 <v>` | `0e: 48 01 01 <v>` |
-| NC optimizer state | `86 01` → `87 01 01 01 01 <pressure × 10>` | |
+Each SET below was sent to the headset, which ACKed it and echoed the notification shown.
+
+| Setting | GET → reply | SET | Notify |
+|---|---|---|---|
+| DSEE Extreme | `e6 02` → `e7 02 00 <v>` | `e8 02 00 <v>` | `e9 02 00 <v>`, then `17 00 02 <v>` |
+| Sound quality mode | `e6 01` → `e7 01 00 <00 sound / 01 connection>` | `e8 01 00 <v>` | `e9 01 00 <v>`, codec drops to `1b 00 00` and comes back about a second later. The link stays up. |
+| Pause when taken off | `f6 03` → `f7 03 00 <v>` | `f8 03 00 <v>` | `f9 03 00 <v>` |
+| Auto power off | `f6 04` → `f7 04 01 <10 when taken off / 11 never> 00` | `f8 04 01 <v> 00` | `f9 04 01 <v> 00` |
+| Touch panel | `d6 d1` → `d7 d1 01 <v>` | `d8 d1 01 <v>` | `d9 d1 01 <v>` |
+| Voice guidance | `0e: 46 01 01` → `47 01 01 <v>` | `0e: 48 01 01 <v>` | `0e: 49 01 01 <v>` |
+| Multipoint | `d6 d2` → `d7 d2 01 <v>` | not used | |
+| Custom button | `f6 06` → `f7 06 01 <00 ambient / 31 Google / 32 Alexa>` | not used | |
+| NC optimizer state | `86 01` → `87 01 01 01 01 <pressure × 10>` | not used | |
+
+Speak-to-chat config was also set and restored: `fc 05 00 00 01 01` → `fd 05 00 00 01 01`.
 
 ### Power off
 

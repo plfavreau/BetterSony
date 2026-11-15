@@ -176,8 +176,8 @@ fun PowerWidgetContent(d: WidgetData) {
         Spacer(GlanceModifier.height(6.dp))
         Text(
             when {
-                d.turningOff -> "Turning off"
-                d.connected -> "Turn off"
+                d.turningOff -> "…"
+                d.connected -> d.battery?.let { "$it%" } ?: "On"
                 else -> "Off"
             },
             style = style(12.sp, if (active) WColors.text else WColors.sub), maxLines = 1,

@@ -18,7 +18,10 @@ import android.util.Log
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import org.pilou.bettersony.data.apply
+import kotlinx.coroutines.flow.first
 import org.pilou.bettersony.mdr.MdrClient
+import org.pilou.bettersony.mdr.MdrFrame
 import org.pilou.bettersony.mdr.MsgType
 import org.pilou.bettersony.mdr.hex
 import org.pilou.bettersony.Probe.Companion.TAG
@@ -36,6 +39,15 @@ class ProbeReceiver : BroadcastReceiver() {
         // `--es job POWER_OFF` runs the same background job a widget tap does, without any MDR probing.
         intent.getStringExtra("job")?.let { name ->
             org.pilou.bettersony.data.HeadsetJob.schedule(context, org.pilou.bettersony.data.HeadsetJob.Task.valueOf(name))
+            return
+        }
+        // `--es restart multipoint:0|button:32` runs the app's own restart flow, as the confirm dialog does.
+        intent.getStringExtra("restart")?.let { spec ->
+            val pending = goAsync()
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Default).launch {
+                restartFlow(context, spec)
+                pending.finish()
+            }
             return
         }
         // `--es mode AMBIENT` switches like a widget button does.
@@ -155,18 +167,28 @@ class Probe(private val intent: Intent, private val log: (String) -> Unit = { Lo
             val (type, payload) = parse(spec)
             runCatching { client.send(payload, type) }.onFailure { log("send failed: ${it.message}") }
             log("== SENT $spec")
-            while (true) { val f = client.nextFrame(NOTIFY_WAIT_MS) ?: break; log("   (after) $f") }
+            while (true) { val f = client.nextFrame(NOTIFY_WAIT_MS) ?: break; log("   (after) $f"); answer(client, f) }
         }
         val listen = intent.getIntExtra("listen", 0)
         if (listen > 0) {
             log("== listening ${listen}s")
             val end = System.currentTimeMillis() + listen * 1000L
             while (System.currentTimeMillis() < end) {
-                client.nextFrame(end - System.currentTimeMillis())?.let { log("   (live) $it  |${ascii(it.payload)}") }
+                client.nextFrame(end - System.currentTimeMillis())?.let { log("   (live) $it  |${ascii(it.payload)}"); answer(client, it) }
             }
         }
         client.close()
         log("done in ${System.currentTimeMillis() - t0} ms")
+    }
+
+    /** `--es answer 01|00` replies to headset yes/no alerts (`99 01 <msg> 01`) with `98 01 <msg> <answer>`. */
+    private fun answer(client: MdrClient, f: MdrFrame) {
+        val reply = intent.getStringExtra("answer")?.toInt(16) ?: return
+        val p = f.payload
+        if (p.size < 4 || (p[0].toInt() and 0xFF) != 0x99 || p[1].toInt() != 1 || p[3].toInt() != 1) return
+        val out = byteArrayOf(0x98.toByte(), 1, p[2], reply.toByte())
+        runCatching { client.send(out, MsgType.TABLE_1) }.onFailure { log("answer failed: ${it.message}") }
+        log("== ANSWERED ${out.hex()}")
     }
 
     private fun ascii(b: ByteArray) = String(CharArray(b.size) { val c = b[it].toInt() and 0xFF; if (c in 32..126) c.toChar() else '.' })
@@ -188,4 +210,29 @@ class Probe(private val intent: Intent, private val log: (String) -> Unit = { Lo
             "2:4001", "2:4601 01", "2:4601 02", "2:3001", "2:3601",
         )
     }
+}
+
+private suspend fun restartFlow(context: Context, spec: String) {
+    val (what, value) = spec.split(':')
+    val change = when (what) {
+        "multipoint" -> org.pilou.bettersony.data.RestartChange.Multipoint(value == "1")
+        else -> org.pilou.bettersony.data.RestartChange.Button(org.pilou.bettersony.data.CustomButton.of(value.toInt(16))!!)
+    }
+    val repo = org.pilou.bettersony.data.Headsets.repo(context)
+    val log: (String) -> Unit = { Log.i(Probe.TAG, it) }
+    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { org.pilou.bettersony.data.Headsets.onForeground(context) }
+    kotlinx.coroutines.withTimeoutOrNull(30_000) {
+        repo.state.first { it is org.pilou.bettersony.data.ConnectionState.Connected && !it.syncing }
+    }
+    log("restart: state before ${repo.state.value::class.simpleName}")
+    log("restart: asked = ${repo.apply(change)}")
+    val job = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Default).launch {
+        repo.state.collect { st ->
+            val h = (st as? org.pilou.bettersony.data.ConnectionState.Connected)
+            log("restart: ${st::class.simpleName} syncing=${h?.syncing} multi=${h?.headset?.multipoint} button=${h?.headset?.customButton}")
+        }
+    }
+    kotlinx.coroutines.delay(40_000)
+    job.cancel()
+    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { org.pilou.bettersony.data.Headsets.onBackground(context) }
 }

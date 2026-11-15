@@ -54,9 +54,12 @@ fun App(
                     )
                 is ConnectionState.Connecting -> ConnectingScreen(st.name)
                 is ConnectionState.Disconnected -> EmptyScreen(
-                    title = "Headphones not connected",
-                    message = st.error
-                        ?: "Turn them on and they'll show up here on their own. No need to pair again.",
+                    title = if (st.canConnect) "Headphones not connected" else "No headphones paired",
+                    message = st.error ?: if (st.canConnect) {
+                        "Turn them on and they'll show up here on their own. No need to pair again."
+                    } else {
+                        "Pair your WH-1000XM4 in Bluetooth settings once. After that, they show up here on their own."
+                    },
                     action = if (st.canConnect) "Connect" else null,
                     onAction = vm.repo::connectManually,
                     secondary = "Bluetooth settings" to onOpenBluetooth,

@@ -1,0 +1,14 @@
+node_modules/
+.expo/
+android/
+ios/
+*.apk
+*.aab
+.env*
+.DS_Store
+build/
+.gradle/
+local.properties
+.idea/
+*.iml
+.kotlin/

@@ -1,5 +1,6 @@
 package org.pilou.bettersony
 
+import kotlinx.coroutines.launch
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Activity
@@ -32,6 +33,20 @@ import java.io.File
 @SuppressLint("MissingPermission")
 class ProbeReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
+        // `--es job POWER_OFF` runs the same background job a widget tap does, without any MDR probing.
+        intent.getStringExtra("job")?.let { name ->
+            org.pilou.bettersony.data.HeadsetJob.schedule(context, org.pilou.bettersony.data.HeadsetJob.Task.valueOf(name))
+            return
+        }
+        // `--es mode AMBIENT` switches like a widget button does.
+        intent.getStringExtra("mode")?.let { name ->
+            val pending = goAsync()
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Default).launch {
+                org.pilou.bettersony.data.Headsets.setModeFromWidget(context, org.pilou.bettersony.data.ListenMode.valueOf(name))
+                pending.finish()
+            }
+            return
+        }
         val adapter = context.getSystemService(BluetoothManager::class.java).adapter
         val device = adapter.bondedDevices.firstOrNull { it.name?.startsWith("WH-") == true }
         val extras = Intent(intent)

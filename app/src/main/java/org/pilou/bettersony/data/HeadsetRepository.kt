@@ -25,13 +25,14 @@ private const val RECONNECT_DELAY_MS = 2000L
 private const val CONNECT_TIMEOUT_MS = 30_000L
 private const val CONNECT_RETRIES = 3
 private const val RETRY_DELAY_MS = 3000L
+private const val TAKEOVER_WINDOW_MS = 60_000L
 private val BATTERY_REPORTS = listOf(0x11, 0x13)
 
 /** Owns the connection lifecycle and exposes one observable [ConnectionState]. */
 @OptIn(ExperimentalCoroutinesApi::class)
 class HeadsetRepository(
     private val devices: SonyDevices,
-    private val prefs: AppPrefs,
+    internal val prefs: AppPrefs,
     private val scope: CoroutineScope,
     private val onBattery: (Int) -> Unit,
 ) {
@@ -42,6 +43,8 @@ class HeadsetRepository(
     private var sessionJob: Job? = null
     private var eventsJob: Job? = null
     private var editsDuringSync = 0
+    private var lastTakeover = 0L
+    private var poweringOff = false
 
     private fun log(msg: String) = Log.i(TAG, msg)
 
@@ -147,7 +150,8 @@ class HeadsetRepository(
             if (session !== s) return
             session = null
             BatteryCheckJob.appConnected = false
-            val stillThere = devices.connected()?.address == device.address
+            val stillThere = !poweringOff && devices.connected()?.address == device.address
+            poweringOff = false
             if (stillThere && attempt < CONNECT_RETRIES) {
                 delay(RETRY_DELAY_MS)
                 if (session == null) connect(device, attempt + 1)
@@ -201,6 +205,19 @@ class HeadsetRepository(
     private suspend fun onSessionClosed(s: HeadsetSession) {
         if (session !== s) return
         dropSession()
+        if (poweringOff) {
+            poweringOff = false
+            return idle()
+        }
+        // The headset serves one control channel: a close while the audio link stays up means another app
+        // (Sound Connect) opened it. Take it back once, but don't fight over it.
+        val now = System.currentTimeMillis()
+        val takenOver = devices.connected()?.address == s.device.address
+        if (takenOver && now - lastTakeover < TAKEOVER_WINDOW_MS) {
+            idle("Another app is using your headphones' controls. Tap Connect to take them back.")
+            return
+        }
+        if (takenOver) lastTakeover = now
         delay(RECONNECT_DELAY_MS)
         if (session == null) autoConnect()
     }
@@ -218,6 +235,7 @@ class HeadsetRepository(
         _state.update { st -> if (st is ConnectionState.Connected) st.copy(headset = st.headset.apply(frame)) else st }
         if (frame.command in BATTERY_REPORTS) currentBattery()?.let(onBattery)
         (_state.value as? ConnectionState.Connected)?.takeUnless { it.syncing }?.let { prefs.saveHeadset(it.headset) }
+        if (frame.isTalkReport()) session?.let { s -> scope.launch { guardTalk(s) } }
     }
 
     private fun edit(transform: (Headset) -> Headset) {
@@ -226,7 +244,7 @@ class HeadsetRepository(
     }
 
     /** Optimistically applies [optimistic], then sends; the echo (or a re-read) settles the truth. */
-    private fun write(optimistic: (Headset) -> Headset, send: suspend (HeadsetSession) -> Unit) {
+    internal fun write(optimistic: (Headset) -> Headset, send: suspend (HeadsetSession) -> Unit) {
         edit(optimistic)
         val s = session ?: return
         scope.launch {
@@ -242,45 +260,10 @@ class HeadsetRepository(
         return session != null
     }
 
-    fun setSound(sound: SoundControl) = write({ it.copy(sound = sound) }) { it.write(Command.sound(sound)) }
-
-    /** [remember] = a choice made in the app, kept and restored on every connection. */
-    fun setTalk(on: Boolean, remember: Boolean = true) {
-        if (remember) prefs.talkChoice = on
-        write({ it.copy(speakToChat = on) }) { it.write(Command.talk(on)) }
-    }
-
-    fun setTalkConfig(c: TalkConfig) = write({ it.copy(talk = c) }) { it.write(Command.talkConfig(c)) }
-
-    fun setEqPreset(code: Int) = write({ h -> h.copy(eq = (h.eq ?: Equalizer()).copy(preset = code)) }) {
-        it.write(Command.eqPreset(code))
-    }
-
-    fun setEqBand(band: Int, value: Int) {
-        val bands = ((_state.value as? ConnectionState.Connected)?.headset?.eq ?: Equalizer()).with(band, value).bands
-        write({ h -> h.copy(eq = (h.eq ?: Equalizer()).copy(bands = bands)) }) { it.write(Command.eqBands(bands)) }
-    }
-
-    fun resetEq() {
-        val flat = Equalizer().bands
-        write({ h -> h.copy(eq = (h.eq ?: Equalizer()).copy(bands = flat)) }) { it.write(Command.eqBands(flat)) }
-    }
-
-    fun setDsee(on: Boolean) = write({ it.copy(dsee = on) }) { it.write(Command.dsee(on)) }
-
-    fun setPreferSound(on: Boolean) = write({ it.copy(preferSound = on) }) { it.write(Command.preferSound(on)) }
-
-    fun setPauseWhenOff(on: Boolean) = write({ it.copy(pauseWhenOff = on) }) { it.write(Command.pause(on)) }
-
-    fun setAutoOff(on: Boolean) = write({ it.copy(autoOff = on) }) { it.write(Command.autoOff(on)) }
-
-    fun setTouch(on: Boolean) = write({ it.copy(touch = on) }) { it.write(Command.touch(on)) }
-
-    fun setVoiceGuide(on: Boolean) = write({ it.copy(voiceGuide = on) }) { it.writeVoiceGuide(on) }
-
     /** Turns the headphones off. The link drops right after, which resets the state to disconnected. */
     suspend fun powerOff(): Boolean {
         val s = session ?: return false
+        poweringOff = true
         return runCatching { s.powerOff() }.onFailure { log("power off failed: ${it.message}") }.isSuccess
     }
 }

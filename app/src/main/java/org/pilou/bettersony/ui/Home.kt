@@ -13,6 +13,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import org.pilou.bettersony.data.Headset
 import org.pilou.bettersony.data.HeadsetRepository
+import org.pilou.bettersony.data.resetEq
+import org.pilou.bettersony.data.setAutoOff
+import org.pilou.bettersony.data.setDsee
+import org.pilou.bettersony.data.setEqBand
+import org.pilou.bettersony.data.setEqPreset
+import org.pilou.bettersony.data.setPauseWhenOff
+import org.pilou.bettersony.data.setPreferSound
+import org.pilou.bettersony.data.setSound
+import org.pilou.bettersony.data.setTalk
+import org.pilou.bettersony.data.setTalkConfig
+import org.pilou.bettersony.data.setTouch
+import org.pilou.bettersony.data.setVoiceGuide
 
 @Composable
 fun HomeContent(

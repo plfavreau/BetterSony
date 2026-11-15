@@ -38,6 +38,7 @@ BetterSony talks to the headphones directly over Bluetooth and does only that.
 - **Ambient sound control**: noise cancelling, wind reduction, ambient sound with level and focus on voice, off.
 - **Speak-to-chat** options: voice detection, when music resumes, focus on voice.
 - **Equalizer**: presets, Clear Bass and 5 bands for Manual, Custom 1 and Custom 2.
+- **Custom button** (ambient sound, Google Assistant or Alexa) and **two devices at once**.
 - **DSEE Extreme**, sound quality or stable connection, pause when taken off, turn off when taken off, touch controls, voice prompts.
 - **Low battery alert** at 10, 20 or 30%, again at 10% and 5%, and each time you turn them back on while low.
 - **Opens instantly** with your last known settings, then syncs in the background.

@@ -12,6 +12,8 @@ import org.pilou.bettersony.data.AlertSettings
 import org.pilou.bettersony.data.AppPrefs
 import org.pilou.bettersony.data.HeadsetRepository
 import org.pilou.bettersony.data.Headsets
+import org.pilou.bettersony.data.RestartChange
+import org.pilou.bettersony.data.apply
 
 class HomeViewModel(app: Application) : AndroidViewModel(app) {
     val prefs = AppPrefs.get(app)
@@ -27,6 +29,10 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
 
     fun powerOff() {
         viewModelScope.launch { repo.powerOff() }
+    }
+
+    fun restart(change: RestartChange) {
+        viewModelScope.launch { repo.apply(change) }
     }
 
     fun setAlerts(settings: AlertSettings) {

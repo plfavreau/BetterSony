@@ -37,7 +37,7 @@ import org.pilou.bettersony.R
 const val LOW_BATTERY = 20
 
 @Composable
-fun Header(name: String, phone: String, syncing: Boolean, onPower: () -> Unit, onSettings: () -> Unit) {
+fun Header(name: String, phone: String, syncing: Boolean, restarting: Boolean, onPower: () -> Unit, onSettings: () -> Unit) {
     val dot by animateColorAsState(if (syncing) Palette.tertiary else Palette.green, label = "dot")
     Row(
         Modifier.fillMaxWidth().padding(start = 22.dp, end = 22.dp, top = 6.dp),
@@ -49,7 +49,7 @@ fun Header(name: String, phone: String, syncing: Boolean, onPower: () -> Unit, o
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
                 Box(Modifier.size(7.dp).background(dot, CircleShape))
                 Spacer(Modifier.width(6.dp))
-                BasicText(if (syncing) "Connecting…" else "Connected · $phone", style = Type.callout, maxLines = 1)
+                BasicText(when { restarting -> "Restarting…"; syncing -> "Connecting…"; else -> "Connected · $phone" }, style = Type.callout, maxLines = 1)
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {

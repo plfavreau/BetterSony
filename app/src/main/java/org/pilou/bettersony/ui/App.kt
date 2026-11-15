@@ -15,6 +15,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.pilou.bettersony.data.ConnectionState
+import org.pilou.bettersony.data.RestartChange
 import org.pilou.bettersony.alerts.BatteryAlerts
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
@@ -36,6 +37,7 @@ fun App(
     val canNotify = remember(resumed, showSettingsKey(state)) { BatteryAlerts.canNotify(context) }
     var showSettings by rememberSaveable { mutableStateOf(false) }
     var confirmOff by rememberSaveable { mutableStateOf(false) }
+    var pendingRestart by remember { mutableStateOf<RestartChange?>(null) }
     val keepTalk by vm.keepTalk.collectAsStateWithLifecycle()
 
     Box(Modifier.fillMaxSize().background(Palette.background)) {
@@ -48,9 +50,10 @@ fun App(
             when (st) {
                 is ConnectionState.Connected ->
                     HomeContent(
-                        st.headset, st.syncing, vm.phoneName, vm.repo, keepTalk, vm::setKeepTalk,
+                        st.headset, st.syncing, st.restarting, vm.phoneName, vm.repo, keepTalk, vm::setKeepTalk,
                         onPower = { confirmOff = true },
                         onSettings = { showSettings = true },
+                        onRestart = { pendingRestart = it },
                     )
                 is ConnectionState.Connecting -> ConnectingScreen(st.name)
                 is ConnectionState.Disconnected -> EmptyScreen(
@@ -94,6 +97,11 @@ fun App(
                 name = connected.headset.name,
                 onConfirm = { confirmOff = false; vm.powerOff() },
                 onDismiss = { confirmOff = false },
+            )
+            RestartDialog(
+                change = pendingRestart,
+                onConfirm = { pendingRestart?.let(vm::restart); pendingRestart = null },
+                onDismiss = { pendingRestart = null },
             )
         }
     }

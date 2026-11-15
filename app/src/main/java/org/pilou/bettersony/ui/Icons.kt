@@ -37,6 +37,7 @@ object Icons {
     val off = outline("off", circle(12f, 12f, 9f), "M5.6 18.4L18.4 5.6")
     val power = outline("power", "M12 3v8", "M6.3 6.8a8 8 0 1 0 11.4 0")
     val talk = outline("talk", "M4 5h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H9l-5 4V6a1 1 0 0 1 1-1z", "M8 10h8", "M8 13h5")
+    val restart = outline("restart", "M20 12a8 8 0 1 1-2.3-5.7", "M20 4v4h-4")
     val chevron = outline("chevron", "M9 6l6 6-6 6")
     val close = outline("close", "M6 6l12 12", "M18 6L6 18")
     val bolt = outline("bolt", "M13 2L4 14h7l-1 8 9-12h-7l1-8z")

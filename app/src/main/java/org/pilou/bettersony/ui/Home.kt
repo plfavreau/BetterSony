@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import org.pilou.bettersony.data.Headset
 import org.pilou.bettersony.data.HeadsetRepository
+import org.pilou.bettersony.data.RestartChange
 import org.pilou.bettersony.data.resetEq
 import org.pilou.bettersony.data.setAutoOff
 import org.pilou.bettersony.data.setDsee
@@ -30,12 +31,14 @@ import org.pilou.bettersony.data.setVoiceGuide
 fun HomeContent(
     headset: Headset,
     syncing: Boolean,
+    restarting: Boolean,
     phone: String,
     repo: HeadsetRepository,
     keepTalk: Boolean,
     onKeepTalk: (Boolean) -> Unit,
     onPower: () -> Unit,
     onSettings: () -> Unit,
+    onRestart: (RestartChange) -> Unit,
 ) {
     Column(
         Modifier
@@ -43,7 +46,7 @@ fun HomeContent(
             .verticalScroll(rememberScrollState())
             .navigationBarsPadding(),
     ) {
-        Header(headset.name, phone, syncing, onPower, onSettings)
+        Header(headset.name, phone, syncing, restarting, onPower, onSettings)
         Hero(headset.battery, headset.charging, codecLabel(headset))
         headset.battery?.takeIf { it <= LOW_BATTERY && !headset.charging }?.let { LowBatteryNotice(it) }
         headset.speakToChat?.let { on ->
@@ -55,7 +58,8 @@ fun HomeContent(
         }
         headset.eq?.let { EqualizerCard(it, repo::setEqPreset, repo::setEqBand, repo::resetEq) }
         SoundCard(headset, repo)
-        HeadphonesCard(headset, repo)
+        headset.customButton?.let { ButtonCard(it) { b -> onRestart(RestartChange.Button(b)) } }
+        HeadphonesCard(headset, repo, onRestart)
         Spacer(Modifier.height(40.dp))
     }
 }
@@ -86,7 +90,7 @@ private fun SoundCard(headset: Headset, repo: HeadsetRepository) {
 }
 
 @Composable
-private fun HeadphonesCard(headset: Headset, repo: HeadsetRepository) {
+private fun HeadphonesCard(headset: Headset, repo: HeadsetRepository, onRestart: (RestartChange) -> Unit) {
     Column(SectionPadding) {
         SectionLabel("Headphones")
         Card(verticalPadding = 4.dp) {
@@ -107,11 +111,10 @@ private fun HeadphonesCard(headset: Headset, repo: HeadsetRepository) {
                 headset.voiceGuide?.let { on ->
                     SettingsRow("Voice prompts", divider = divider()) { Toggle(on, repo::setVoiceGuide) }
                 }
-                headset.customButton?.let {
-                    SettingsRow("Custom button", divider = divider()) { BasicText(it, style = Type.callout) }
-                }
-                headset.multipoint?.let {
-                    SettingsRow("Two devices at once", divider = divider()) { BasicText(if (it) "On" else "Off", style = Type.callout) }
+                headset.multipoint?.let { on ->
+                    SettingsRow("Two devices at once", divider = divider(), subtitle = "Changing it restarts your headphones") {
+                        Toggle(on, { onRestart(RestartChange.Multipoint(it)) })
+                    }
                 }
             }
         }

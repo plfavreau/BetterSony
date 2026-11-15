@@ -92,6 +92,8 @@ The setting is stored in the headset and survived turning the phone's Bluetooth 
 
 Values are −10..+10 sent as `00..14`. Presets: `00` off, `10` bright, `11` excited, `12` mellow, `13` relaxed, `14` vocal, `15` treble boost, `16` bass boost, `17` speech, `a0` manual, `a1` custom 1, `a2` custom 2.
 
+Band writes apply to the current preset (only Manual, Custom 1 and Custom 2 are editable). The headset ACKs them but sends no `59` notification; read `56 01` to confirm.
+
 ### Other settings
 
 Each SET below was sent to the headset, which ACKed it and echoed the notification shown.
@@ -112,7 +114,13 @@ Speak-to-chat config was also set and restored: `fc 05 00 00 01 01` → `fd 05 0
 
 ### Power off
 
-`22 00 01`. The headset ACKs and turns off.
+`22 00 01`. Verified: the ACK comes back within 50 ms, the RFCOMM link drops right after and the headset is off a second later. Press its power button to turn it back on.
+
+## One control channel
+
+The headset serves a single MDR session per phone. Opening a second RFCOMM socket to the service closes the first one (seen with two clients in the same phone). Sound Connect opens a session in the background right after the headset connects, even with its screen closed. That is the moment it can push its own idea of the settings, so BetterSony connects at the same time (which closes Sound Connect's session), checks speak-to-chat, and checks again 15 s later.
+
+Speak-to-chat survived both a phone Bluetooth off/on and a full headset power cycle, so the headset itself never resets it.
 
 ## Not used
 

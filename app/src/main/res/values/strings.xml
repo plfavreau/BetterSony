@@ -1,3 +1,12 @@
 <resources>
     <string name="app_name">BetterSony</string>
+    <string name="widget_ring">Battery ring</string>
+    <string name="widget_big">Battery level</string>
+    <string name="widget_modebar">Battery, modes and power</string>
+    <string name="widget_dashboard">Headphones dashboard</string>
+    <string name="widget_mini_battery">Mini battery</string>
+    <string name="widget_mini_modes">Quick modes</string>
+    <string name="widget_power">Power off</string>
+    <string name="tile_power">Headphones off</string>
+    <string name="tile_noise">Noise control</string>
 </resources>

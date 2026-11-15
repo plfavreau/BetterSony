@@ -106,8 +106,6 @@ Each SET below was sent to the headset, which ACKed it and echoed the notificati
 | Auto power off | `f6 04` → `f7 04 01 <10 when taken off / 11 never> 00` | `f8 04 01 <v> 00` | `f9 04 01 <v> 00` |
 | Touch panel | `d6 d1` → `d7 d1 01 <v>` | `d8 d1 01 <v>` | `d9 d1 01 <v>` |
 | Voice guidance | `0e: 46 01 01` → `47 01 01 <v>` | `0e: 48 01 01 <v>` | `0e: 49 01 01 <v>` |
-| Multipoint | `d6 d2` → `d7 d2 01 <v>` | not used | |
-| Custom button | `f6 06` → `f7 06 01 <00 ambient / 31 Google / 32 Alexa>` | not used | |
 | NC optimizer state | `86 01` → `87 01 01 01 01 <pressure × 10>` | not used | |
 
 Speak-to-chat config was also set and restored: `fc 05 00 00 01 01` → `fd 05 00 00 01 01`.
@@ -115,6 +113,26 @@ Speak-to-chat config was also set and restored: `fc 05 00 00 01 01` → `fd 05 0
 ### Power off
 
 `22 00 01`. Verified: the ACK comes back within 50 ms, the RFCOMM link drops right after and the headset is off a second later. Press its power button to turn it back on.
+
+### Settings that restart the headset
+
+Multipoint and the custom button make the headset restart. It asks first and only applies the change once the app says yes.
+
+| Setting | GET → reply | SET | Question |
+|---|---|---|---|
+| Multipoint (GS2, `MULTIPOINT_SETTING`) | `d6 d2` → `d7 d2 01 <v>` | `d8 d2 01 <v>` | `99 01 06 01` (turning on), `99 01 07 01` (turning off) |
+| Custom button | `f6 06` → `f7 06 01 <00 ambient / 31 Google / 32 Alexa>` | `f8 06 01 <preset>` | `99 01 02 01` |
+
+Flow, verified both ways for each setting:
+
+1. `94 01 00` turns on these questions (alert status, fixed messages, `00` = enable).
+2. Send the SET. The headset ACKs it and asks within about 20 ms: `99 01 <message> 01` (`01` = yes/no question).
+3. Answer `98 01 <message> 01` to go ahead, or `98 01 <message> 00` to cancel. On cancel it notifies the unchanged value (`d9 d2 01 01`).
+4. On yes, the control channel drops right away and the headset restarts. It came back on its own after about 7 s when turning multipoint off, and about 40 s whenever multipoint ends up on.
+
+With multipoint off, the Pixel switched from AAC to LDAC.
+
+Button capability, `f0 06` → `f1 06 01 02 01 00 03 | 00 02 00 01 21 02 | 31 03 00 31 01 33 22 32 | 32 01 00 34`: one CUSTOM button (`02`, a physical button `01`, default `00`) with three presets. Ambient sound: press cycles noise cancelling and ambient sound, long press runs the NC optimizer. Google Assistant: press for notifications, double press stops it, hold to talk. Alexa: press to talk.
 
 ## One control channel
 
@@ -124,4 +142,4 @@ Speak-to-chat survived both a phone Bluetooth off/on and a full headset power cy
 
 ## Not used
 
-Firmware update (`34`–`37`), the `ff` test commands, alerts (`98`) and paired device management (`0e: 3x`) are never sent.
+Firmware update (`34`–`37`), the `ff` test commands, `98` answers to anything but the questions above, and paired device management (`0e: 3x`) are never sent.
